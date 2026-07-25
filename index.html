@@ -1,0 +1,87 @@
+<!doctype html>
+  <html lang="hi">
+  <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Booking Confirmation</title>
+  <style>
+    body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#F4F6F8;margin:0;color:#0F172A;display:flex;justify-content:center;padding:24px 16px}
+  .card{background:#fff;border-radius:16px;max-width:420px;width:100%;box-shadow:0 2px 12px rgba(30,58,95,.10);overflow:hidden}
+      .head{background:#1E3A5F;color:#fff;padding:20px 24px}
+  .head h1{margin:0;font-size:20px}
+  .head p{margin:4px 0 0;opacity:.75;font-size:13px}
+  .body{padding:24px}
+      .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #EEF1F4;font-size:15px}
+  .row b{text-align:right}
+  .amt{font-variant-numeric:tabular-nums}
+  .note{font-size:13px;color:#64748B;margin:16px 0}
+  button{width:100%;padding:14px;border:0;border-radius:12px;background:#059669;color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+    button:disabled{background:#94A3B8;cursor:default}
+  .ok{color:#059669;font-weight:700;font-size:17px;text-align:center;padding:8px 0}
+  .err{color:#DC2626;text-align:center;padding:24px;font-size:15px}
+    label{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin:16px 0;cursor:pointer}
+  input[type=checkbox]{width:20px;height:20px;margin-top:1px}
+  .load{text-align:center;padding:40px;color:#64748B}
+</style>
+  </head>
+  <body>
+  <div class="card" id="card"><div class="load">Loading…</div></div>
+  <script>
+  const API = 'https://mfqfokqgeaerqwhoabpm.supabase.co/functions/v1/booking-confirm';
+const t = new URLSearchParams(location.search).get('t') || '';
+const card = document.getElementById('card');
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const inr = n => '₹' + Number(n).toLocaleString('en-IN');
+const dateIN = d => new Date(d + 'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+function showError(){
+  card.innerHTML = '<div class="body"><p class="err">Ye link sahi nahi hai ya expire ho chuka hai.<br>Kripya apne studio se naya link maangein.</p></div>';
+}
+function showDone(studio, already, when){
+  card.innerHTML = '<div class="head"><h1>' + esc(studio) + '</h1></div>' +
+    '<div class="body"><p class="ok">✓ ' + (already ? 'Ye booking pehle se confirm hai.' : 'Shukriya! Aapki booking confirm ho gayi.') + '</p>' +
+    '<p class="note">' + (already && when ? 'Confirm hua tha: ' + new Date(when).toLocaleString('en-IN',{timeZone:'Asia/Kolkata'}) + ' (IST). ' : 'Iska record studio ke paas date-time ke saath save ho gaya hai. ') +
+    'Ab ye page band kar sakte hain.</p></div>';
+}
+async function init(){
+  if(!t){ showError(); return; }
+  let d;
+  try {
+    const r = await fetch(API + '?t=' + encodeURIComponent(t));
+    if(!r.ok){ showError(); return; }
+    d = await r.json();
+} catch(e){
+    card.innerHTML = '<div class="body"><p class="err">Internet me dikkat lag rahi hai — thodi der baad ye link dobara kholein.</p></div>';
+    return;
+}
+  if(d.accepted_at){ showDone(d.studio, true, d.accepted_at); return; }
+  card.innerHTML =
+    '<div class="head"><h1>' + esc(d.studio) + '</h1><p>Booking confirmation</p></div>' +
+    '<div class="body">' +
+    '<p style="margin:0 0 8px;font-size:15px">Namaste' + (d.client ? ' <b>' + esc(d.client) + '</b>' : '') + ' 🙏<br>Neeche apni booking ki details check kar lein:</p>' +
+    '<div class="row"><span>Event</span><b>' + esc(d.event) + '</b></div>' +
+    (d.date ? '<div class="row"><span>Date</span><b>' + dateIN(d.date) + '</b></div>' : '') +
+    '<div class="row"><span>Package</span><b class="amt">' + inr(d.package_amount) + '</b></div>' +
+    '<label><input type="checkbox" id="agree"> <span>Maine upar di gayi details padh li hain aur main ye booking <b>confirm</b> karta/karti hoon.</span></label>' +
+    '<button id="btn" disabled>✓ Booking Confirm Karein</button>' +
+    '<p class="note">Koi detail galat lage to pehle ' + esc(d.studio) + ' se baat karein, phir confirm karein.</p>' +
+    '</div>';
+  const btn = document.getElementById('btn');
+  document.getElementById('agree').addEventListener('change', e => { btn.disabled = !e.target.checked; });
+  btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.textContent = 'Confirm ho raha hai…';
+    try {
+      const r = await fetch(API + '?t=' + encodeURIComponent(t), {method:'POST'});
+      const res = await r.json();
+      if(res.ok){ showDone(d.studio, !!res.already, res.accepted_at); }
+      else { btn.disabled = false; btn.textContent = '✓ Booking Confirm Karein'; alert('Kuch gadbad ho gayi — dobara try karein.'); }
+} catch(e){
+      btn.disabled = false; btn.textContent = '✓ Booking Confirm Karein';
+      alert('Internet me dikkat — dobara try karein.');
+}
+});
+}
+init();
+</script>
+</body>
+</html>
