@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Shoot details</title>
+<style>
+  body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#F4F6F8;margin:0;
+       color:#0F172A;display:flex;justify-content:center;padding:24px 16px}
+  .card{background:#fff;border-radius:16px;max-width:420px;width:100%;
+        box-shadow:0 2px 12px rgba(30,58,95,.10);overflow:hidden}
+  .head{background:#1E3A5F;color:#fff;padding:20px 24px}
+  .head h1{margin:0;font-size:20px}
+  .head p{margin:4px 0 0;opacity:.75;font-size:13px}
+  .body{padding:24px}
+  .row{display:flex;justify-content:space-between;gap:16px;padding:10px 0;
+       border-bottom:1px solid #EEF1F4;font-size:15px}
+  .row span{color:#64748B;white-space:nowrap}
+  .row b{text-align:right}
+  .amt{font-variant-numeric:tabular-nums}
+  .note{font-size:13px;color:#64748B;margin:16px 0 0;line-height:1.6}
+  .notes{background:#F8FAFC;border-radius:10px;padding:12px 14px;margin:16px 0 0;
+         font-size:14px;line-height:1.55;white-space:pre-wrap}
+  a.map{display:inline-block;margin-top:14px;font-size:14px;color:#1E3A5F;font-weight:600}
+  .btns{display:flex;flex-direction:column;gap:10px;margin-top:22px}
+  button{width:100%;padding:14px;border:0;border-radius:12px;font-size:16px;
+         font-weight:700;cursor:pointer;background:#059669;color:#fff}
+  button.no{background:#fff;color:#B91C1C;border:1.5px solid #FCA5A5}
+  button.files{background:#1E3A5F}
+  button:disabled{opacity:.55;cursor:default}
+  .state{border-radius:12px;padding:14px 16px;margin-top:20px;font-size:15px;
+         line-height:1.5;font-weight:600}
+  .state.yes{background:#ECFDF5;color:#047857}
+  .state.no{background:#FEF2F2;color:#B91C1C}
+  .err{color:#DC2626;text-align:center;padding:24px;font-size:15px;line-height:1.6}
+  .load{text-align:center;padding:40px;color:#64748B}
+  .change{display:block;width:100%;background:none;border:0;color:#64748B;
+          font-size:13px;font-weight:600;margin-top:12px;text-decoration:underline;
+          cursor:pointer;padding:0}
+</style>
+</head>
+<body>
+<div class="card" id="card"><div class="load">Loading…</div></div>
+<script>
+// Crew ka page. Yahan sirf TEEN tap hain, aur teeno ek hi sawaal ka jawab
+// hain jo aaj tak WhatsApp me kho jaata tha: aa rahe ho? nahi aa rahe? files
+// de di?
+//
+// Bhasha seedhi English hai — wahi jo call sheet me jaati hai.
+const API = 'https://mfqfokqgeaerqwhoabpm.supabase.co/functions/v1/crew';
+const t = new URLSearchParams(location.search).get('t') || '';
+const card = document.getElementById('card');
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const inr = n => '₹' + Number(n).toLocaleString('en-IN');
+const dateIN = d => new Date(d + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'long',year:'numeric'});
+
+// "14:30:00" ko "2:30 PM" — freelancer ka phone 24-hour me set ho ya na ho.
+function hhmm(s){
+  if(!s) return '';
+  const p = String(s).split(':'); const h = Number(p[0]); const m = p[1] || '00';
+  if(isNaN(h)) return String(s);
+  const ap = h < 12 ? 'AM' : 'PM'; const h12 = h % 12 === 0 ? 12 : h % 12;
+  return h12 + ':' + m + ' ' + ap;
+}
+const SHOOT = {haldi:'Haldi',mehendi:'Mehendi',sangeet:'Sangeet',wedding:'Wedding',
+               reception:'Reception',engagement:'Engagement',pre_wedding:'Pre-wedding',other:'Shoot'};
+
+function showError(line){
+  card.innerHTML = '<div class="body"><p class="err">' + line + '</p></div>';
+}
+
+function render(d){
+  const title = d.shoot ? (SHOOT[d.shoot] || 'Shoot') + ' — ' + d.event : d.event;
+  let h = '<div class="head"><h1>' + esc(d.studio) + '</h1><p>Call sheet</p></div><div class="body">' +
+    '<p style="margin:0 0 14px;font-size:15px">Hello <b>' + esc(d.crew_name) + '</b></p>' +
+    '<div class="row"><span>Shoot</span><b>' + esc(title) + '</b></div>' +
+    (d.date ? '<div class="row"><span>Date</span><b>' + dateIN(d.date) + '</b></div>' : '') +
+    (d.time ? '<div class="row"><span>Reporting time</span><b>' + hhmm(d.time) + '</b></div>' : '') +
+    (d.venue ? '<div class="row"><span>Venue</span><b>' + esc(d.venue) + '</b></div>' : '') +
+    '<div class="row"><span>Your work</span><b>' + esc(d.role) + '</b></div>' +
+    // Payout chhupana hi jhagde ki jad hai. Jo tay hua hai wo likha rahe.
+    (d.payout > 0 ? '<div class="row"><span>Your payment</span><b class="amt">' + inr(d.payout) + '</b></div>' : '') +
+    (d.map_url ? '<a class="map" href="' + esc(d.map_url) + '" target="_blank" rel="noopener">Open map ↗</a>' : '') +
+    (d.notes ? '<div class="notes">' + esc(d.notes) + '</div>' : '');
+
+  if(d.reply === 'yes'){
+    h += '<div class="state yes">✓ You said you will be there.</div>';
+    if(d.files_given_at){
+      h += '<div class="state yes">✓ Files handed over on ' +
+           new Date(d.files_given_at).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short'}) +
+           '.</div>';
+    } else if(d.shoot_over && d.on_shoot){
+      h += '<div class="btns"><button class="files" data-a="files">Files handed over</button></div>' +
+           '<p class="note">Tap this once you have given the studio the cards or the drive. Post-production starts from here.</p>';
+    }
+    h += '<button class="change" data-a="no">I can no longer make it</button>';
+  } else if(d.reply === 'no'){
+    h += '<div class="state no">You said you cannot make it. The studio has been told.</div>' +
+         '<button class="change" data-a="yes">Actually, I can make it</button>';
+  } else {
+    h += '<div class="btns">' +
+         '<button data-a="yes">I\'ll be there</button>' +
+         '<button class="no" data-a="no">I can\'t make it</button>' +
+         '</div>' +
+         '<p class="note">One tap. The studio sees your answer straight away — no need to reply on WhatsApp.</p>';
+  }
+
+  if(d.studio_phone){
+    h += '<p class="note">Anything wrong here? Call the studio on <b>' + esc(d.studio_phone) + '</b>.</p>';
+  }
+  card.innerHTML = h + '</div>';
+
+  card.querySelectorAll('[data-a]').forEach(function(b){
+    b.addEventListener('click', function(){ send(b.getAttribute('data-a'), b); });
+  });
+}
+
+async function send(action, btn){
+  const old = btn.textContent;
+  card.querySelectorAll('button').forEach(function(x){ x.disabled = true; });
+  btn.textContent = 'Saving…';
+  try {
+    const r = await fetch(API + '?t=' + encodeURIComponent(t), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action: action})
+    });
+    const res = await r.json();
+    if(res.ok){ render(res); return; }
+    throw new Error(res.error || 'failed');
+  } catch(e){
+    card.querySelectorAll('button').forEach(function(x){ x.disabled = false; });
+    btn.textContent = old;
+    alert('Could not save that. Please check your internet and try again.');
+  }
+}
+
+async function init(){
+  if(!t){ showError('This link is incomplete. Please ask the studio to send it again.'); return; }
+  try {
+    const r = await fetch(API + '?t=' + encodeURIComponent(t));
+    if(!r.ok){
+      showError('This link is not valid any more.<br>Please ask the studio for a new one.');
+      return;
+    }
+    render(await r.json());
+  } catch(e){
+    showError('There is a problem with the connection.<br>Please open this link again in a moment.');
+  }
+}
+init();
+</script>
+</body>
+</html>
